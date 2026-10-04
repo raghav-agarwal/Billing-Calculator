@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Rough Estimate — Billing</title>
+<style>
+  :root{
+    --navy:#16324F;
+    --navy-dark:#0E2135;
+    --bg:#EEF1F4;
+    --paper:#FBFAF7;
+    --ink:#1C1E22;
+    --muted:#8A8F98;
+    --green:#2F8F5B;
+    --danger:#C1443B;
+    --line:#DDE2E7;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex; justify-content:center;
+  }
+  .app{ width:100%; max-width:430px; min-height:100vh; background:var(--bg); display:flex; flex-direction:column; position:relative;}
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    background:var(--navy); color:#fff; padding:14px 16px;
+    display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:5;
+  }
+  .topbar .shopname{
+    background:transparent; border:none; color:#fff; font-size:17px; font-weight:700;
+    width:70%; outline:none; padding:2px 0;
+  }
+  .topbar .shopname::placeholder{ color:rgba(255,255,255,.55);}
+  .iconbtn{
+    background:rgba(255,255,255,.12); border:none; color:#fff; width:36px; height:36px;
+    border-radius:10px; font-size:16px; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+
+  /* ---------- Screens ---------- */
+  .screen{ display:none; flex-direction:column; flex:1; }
+  .screen.active{ display:flex; }
+
+  /* ---------- Item list (keypad screen) ---------- */
+  .itemlist{ flex:1; overflow-y:auto; padding:10px 14px 4px; }
+  .itemlist .empty{ text-align:center; color:var(--muted); font-size:13px; margin-top:28px; }
+  .item-row{
+    background:#fff; border-radius:10px; padding:10px 12px; margin-bottom:8px;
+    display:flex; align-items:center; justify-content:space-between;
+    box-shadow:0 1px 2px rgba(20,30,40,.06);
+  }
+  .item-row .meta{ display:flex; flex-direction:column; gap:2px; }
+  .item-row .nm{ font-size:14.5px; font-weight:600; }
+  .item-row .sub{ font-size:12px; color:var(--muted); }
+  .item-row .sub .strike{ text-decoration:line-through; color:#B0B6BD; margin-right:3px; }
+  .item-row .right{ display:flex; align-items:center; gap:10px; }
+  .item-row .amt{ color:var(--green); font-weight:700; font-size:14.5px; }
+  .item-row .del{ background:none; border:none; color:var(--danger); font-size:18px; cursor:pointer; padding:2px 4px;}
+  .item-row .discbtn{
+    background:#EEF1F4; border:none; color:var(--navy-dark); font-size:12px; font-weight:700;
+    cursor:pointer; padding:5px 9px; border-radius:8px;
+  }
+  .item-row .discbtn.has-disc{ background:var(--navy); color:#fff; }
+
+  /* ---------- Entry summary strip ---------- */
+  .entrybar{
+    display:flex; align-items:center; justify-content:space-between;
+    background:#E4E9EE; padding:9px 16px; font-size:13px; color:var(--navy-dark);
+    border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+  }
+  .entrybar b{ color:var(--navy-dark); }
+  .entrybar .clearlink{ color:var(--danger); font-weight:600; background:none; border:none; font-size:13px; cursor:pointer; }
+
+  /* ---------- Input pad ---------- */
+  .padwrap{ background:var(--bg); padding:10px 14px 16px; }
+  .scanbtn{
+    width:100%; border:1px solid var(--navy); background:#fff; color:var(--navy-dark);
+    border-radius:10px; padding:11px 14px; margin-bottom:10px; font-size:14px;
+    font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .scanbtn:active{ transform:scale(.98); }
+  .scanbtn:disabled{ opacity:.6; cursor:wait; }
+  .scanbtn .scanicon{ font-size:19px; line-height:1; }
+  .fieldrow{ display:flex; gap:8px; margin-bottom:10px; }
+  .fieldrow input[type=text]{
+    flex:1; border:1px solid var(--line); border-radius:10px; padding:11px 12px;
+    font-size:14.5px; background:#fff; outline:none;
+  }
+  .qtystep{ display:flex; align-items:center; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden;}
+  .qtystep button{ border:none; background:#fff; width:34px; height:40px; font-size:17px; color:var(--navy); cursor:pointer; }
+  .qtystep span{ width:30px; text-align:center; font-weight:700; font-size:14px; }
+
+  .ratedisplay{
+    background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+    text-align:right; font-size:24px; font-weight:700; color:var(--navy-dark); margin-bottom:10px;
+    letter-spacing:.5px;
+  }
+  .ratedisplay small{ font-size:13px; color:var(--muted); font-weight:600; margin-right:4px; }
+
+  .discountrow{ display:flex; gap:7px; margin-bottom:10px; }
+  .dchip{
+    flex:1; border:1px solid var(--line); background:#fff; border-radius:9px;
+    padding:9px 0; font-size:12.5px; font-weight:700; color:var(--navy-dark); cursor:pointer;
+  }
+  .dchip.active{ background:var(--navy); border-color:var(--navy); color:#fff; }
+  .dchip:active{ transform:scale(.97); }
+
+  .keypad{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .keypad button{
+    border:none; border-radius:10px; background:#fff; font-size:19px; font-weight:600;
+    padding:14px 0; color:var(--ink); cursor:pointer; box-shadow:0 1px 2px rgba(20,30,40,.06);
+  }
+  .keypad button.op{ background:#E4E9EE; color:var(--navy-dark); }
+  .keypad button.add{
+    grid-row:span 4; background:var(--navy); color:#fff; font-size:15px; border-radius:10px;
+  }
+  .keypad button:active{ transform:scale(.96); }
+
+  .bottombar{
+    display:flex; gap:10px; padding:12px 14px 18px; background:var(--bg);
+  }
+  .bottombar .total{ flex:1; display:flex; flex-direction:column; justify-content:center; }
+  .bottombar .total .lbl{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;}
+  .bottombar .total .val{ font-size:20px; font-weight:800; color:var(--navy-dark); }
+  .primarybtn{
+    background:var(--navy); color:#fff; border:none; border-radius:12px; padding:0 22px;
+    font-size:15px; font-weight:700; cursor:pointer; min-width:170px;
+  }
+  .primarybtn:disabled{ background:#B8C0C9; cursor:not-allowed; }
+
+  /* ---------- Receipt screen ---------- */
+  .receiptwrap{ flex:1; overflow-y:auto; padding:18px 16px 8px; }
+  .receipt{
+    background:var(--paper); border-radius:2px; padding:38px 20px 42px;
+    font-family:"SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;
+    color:#1a1a1a; box-shadow:0 2px 10px rgba(20,30,40,.10);
+    position:relative;
+  }
+  .receipt .torn{
+    position:absolute; left:0; right:0; bottom:-9px; height:9px;
+    background:
+      linear-gradient(135deg, var(--paper) 50%, transparent 50%) 0 0/14px 14px,
+      linear-gradient(-135deg, var(--paper) 50%, transparent 50%) 0 0/14px 14px;
+    background-repeat:repeat-x;
+  }
+  .rc-addr{ text-align:center; font-size:14px; color:#555; margin-top:2px;}
+  .rc-invoice{ text-align:center; font-size:17px; font-weight:800; margin-top:8px; letter-spacing:1px; }
+  .rc-sub{ text-align:center; font-weight:800; font-size:24px; margin:2px 0 10px; letter-spacing:1.5px; }
+  .rc-hr{ border:none; border-top:1px dashed #999; margin:10px 0; }
+  .rc-meta{ display:flex; justify-content:space-between; font-size:14px; }
+  .rc-cols{ display:flex; justify-content:space-between; font-size:13.5px; font-weight:700; color:#555; padding:2px 0; }
+  .rc-item{ font-size:16px; padding:6px 0; }
+  .rc-item .line2{ display:flex; justify-content:space-between; color:#333; }
+  .rc-itemdisc{ font-size:12px; color:#8a8f98; margin-top:1px; }
+  .rc-totalrow{ display:flex; justify-content:space-between; font-size:16px; font-weight:700; padding:4px 0; }
+  .rc-savings{ color:var(--green); font-size:14px; }
+  .rc-grand{ text-align:center; font-size:24px; font-weight:800; margin:12px 0 4px; }
+  .rc-thanks{ text-align:center; font-size:15px; color:#444; margin-top:8px; font-weight:600; }
+
+  .receiptactions{ display:flex; gap:8px; padding:16px 16px 24px; }
+  .receiptactions button{
+    flex:1; border:none; border-radius:12px; padding:12px 0; font-size:13px; font-weight:700; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  .receiptactions .newsale{ background:#fff; color:var(--navy-dark); box-shadow:0 1px 3px rgba(20,30,40,.08);}
+  .receiptactions .share{ background:#fff; color:var(--navy-dark); box-shadow:0 1px 3px rgba(20,30,40,.08);}
+  .receiptactions .print{ background:var(--navy); color:#fff; }
+  .receiptactions button span.ic{ font-size:18px; }
+
+  .printer-status{
+    margin:0 16px 10px; padding:9px 12px; border-radius:10px; font-size:12px;
+    background:#fff; display:flex; align-items:center; justify-content:space-between; box-shadow:0 1px 2px rgba(20,30,40,.06);
+  }
+  .printer-status .dot{ width:8px; height:8px; border-radius:50%; background:var(--danger); display:inline-block; margin-right:6px; }
+  .printer-status.connected .dot{ background:var(--green); }
+  .printer-status button{ border:none; background:var(--navy); color:#fff; border-radius:8px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer; }
+
+  /* ---------- Settings modal ---------- */
+  .modal-bg{ position:fixed; inset:0; background:rgba(10,18,26,.45); display:none; align-items:flex-end; justify-content:center; z-index:20;}
+  .modal-bg.active{ display:flex; }
+  .modal{ background:#fff; width:100%; max-width:430px; border-radius:18px 18px 0 0; padding:18px 18px 26px; }
+  .modal h3{ margin:0 0 12px; font-size:16px; }
+  .modal label{ display:block; font-size:12.5px; color:var(--muted); margin:12px 0 6px; }
+  .modal select, .modal input[type=text]{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line); font-size:14px; outline:none;
+  }
+  .modal .closebtn{ margin-top:18px; width:100%; background:var(--navy); color:#fff; border:none; padding:12px; border-radius:10px; font-weight:700; cursor:pointer;}
+  .modal .note{ font-size:11.5px; color:var(--muted); margin-top:10px; line-height:1.5; }
+
+  /* ---------- Live barcode scanner ---------- */
+  .scanner-modal{ padding-top:14px; }
+  .scanner-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .scanner-head h3{ margin:0; }
+  .scanner-close{
+    border:none; background:#EEF1F4; color:var(--navy-dark); width:34px; height:34px;
+    border-radius:9px; font-size:17px; cursor:pointer;
+  }
+  .scanner-view{
+    position:relative; width:100%; height:min(56vh,430px); min-height:300px;
+    background:#07111B; border-radius:14px; overflow:hidden;
+  }
+  .scanner-view video{ width:100%; height:100%; object-fit:cover; display:block; }
+  .scanner-frame{
+    position:absolute; left:7%; right:7%; top:31%; height:38%; border:2px solid #fff;
+    border-radius:12px; box-shadow:0 0 0 999px rgba(0,0,0,.25); pointer-events:none;
+  }
+  .scanner-line{
+    position:absolute; left:4%; right:4%; top:50%; height:2px; background:#54E59A;
+    box-shadow:0 0 8px rgba(84,229,154,.9);
+  }
+  .scanner-status{ min-height:18px; margin:11px 2px 0; text-align:center; color:var(--muted); font-size:12.5px; }
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--navy-dark); color:#fff; padding:10px 16px; border-radius:10px; font-size:13px;
+    z-index:50; opacity:0; pointer-events:none; transition:opacity .25s;
+  }
+  .toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===================== KEYPAD SCREEN ===================== -->
+  <div class="screen active" id="keypadScreen">
+    <div class="topbar">
+      <input class="shopname" id="shopName" placeholder="Shop name" value="My Shop" maxlength="30">
+      <button class="iconbtn" id="openSettings" title="Settings">⚙</button>
+    </div>
+
+    <div class="itemlist" id="itemList">
+      <div class="empty">No items added yet — enter item details below</div>
+    </div>
+
+    <div class="entrybar">
+      <span>Items: <b id="itemCount">0</b></span>
+      <button class="clearlink" id="clearOrder">Clear Order</button>
+    </div>
+
+    <div class="padwrap">
+      <button class="scanbtn" id="scanBarcodeBtn" type="button">
+        <span class="scanicon">▥</span><span id="scanBarcodeText">Scan Barcode</span>
+      </button>
+
+      <div class="ratedisplay"><small>Rate ₹</small><span id="rateVal">0</span></div>
+
+      <div class="keypad" id="keypad">
+        <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+        <button class="add" id="addItemBtn" style="grid-row: span 4;">Add<br>Item</button>
+        <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+        <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+        <button class="op" data-k="back">⌫</button>
+        <button data-k="0">0</button><button data-k="00">00</button><button data-k=".">.</button>
+      </div>
+    </div>
+
+    <div class="bottombar">
+      <div class="total">
+        <div class="lbl">Total</div>
+        <div class="val" id="runningTotal">₹0.00</div>
+      </div>
+      <button class="primarybtn" id="generateBtn" disabled>Generate Estimate</button>
+    </div>
+  </div>
+
+  <!-- ===================== RECEIPT SCREEN ===================== -->
+  <div class="screen" id="receiptScreen">
+    <div class="topbar">
+      <span style="font-weight:700;">Rough Estimate</span>
+      <button class="iconbtn" id="backToEdit" title="Back">←</button>
+    </div>
+
+    <div class="printer-status" id="printerStatus">
+      <span><span class="dot"></span><span id="printerStatusText">Printer not connected</span></span>
+      <button id="connectPrinterBtn">Connect</button>
+    </div>
+
+    <div class="receiptwrap">
+      <div class="receipt" id="receiptContent">
+        <!-- filled by JS -->
+        <div class="torn"></div>
+      </div>
+    </div>
+
+    <div class="receiptactions">
+      <button class="newsale" id="newSaleBtn"><span class="ic">🏠</span>New Sale</button>
+      <button class="share" id="shareBtn"><span class="ic">↗</span>Share</button>
+      <button class="print" id="printBtn"><span class="ic">🖨</span>Print</button>
+    </div>
+  </div>
+
+  <!-- ===================== SETTINGS MODAL ===================== -->
+  <div class="modal-bg" id="settingsModal">
+    <div class="modal">
+      <h3>Settings</h3>
+      <label for="paperWidth">Paper width</label>
+      <select id="paperWidth">
+        <option value="32">58mm (32 characters)</option>
+        <option value="48">80mm (48 characters)</option>
+      </select>
+
+      <label for="shopAddr">Address / phone (shown on estimate)</label>
+      <input type="text" id="shopAddr" placeholder="e.g. Bareilly, 243001" maxlength="60">
+
+      <div class="note">
+        Bluetooth printing needs Chrome or Edge on Android or desktop, over HTTPS (or localhost). It won't work in Safari/iOS or when the file is opened directly as file:// — host it on a simple web server or a service like GitHub Pages for Bluetooth to work.
+      </div>
+      <button class="closebtn" id="closeSettings">Done</button>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="itemDiscountModal">
+    <div class="modal">
+      <h3 id="itemDiscountTitle">Discount</h3>
+      <div class="discountrow" id="itemDiscountRow" style="margin-top:4px;">
+        <button class="dchip" data-d="0">No Discount</button>
+        <button class="dchip" data-d="20">20% off</button>
+        <button class="dchip" data-d="25">25% off</button>
+        <button class="dchip" id="itemCustomDiscountBtn" data-d="custom">Custom</button>
+      </div>
+      <div id="customDiscountWrap" style="display:none; margin-top:14px;">
+        <label for="customDiscountInput">Custom discount %</label>
+        <input type="number" id="customDiscountInput" min="0" max="100" step="0.01" placeholder="e.g. 15" inputmode="decimal">
+        <button class="closebtn" id="applyCustomDiscount" style="margin-top:10px;">Apply</button>
+      </div>
+      <button class="closebtn" id="closeItemDiscount">Done</button>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="barcodeScannerModal">
+    <div class="modal scanner-modal">
+      <div class="scanner-head">
+        <h3>Scan Barcode</h3>
+        <button class="scanner-close" id="closeBarcodeScanner" type="button" aria-label="Close scanner">✕</button>
+      </div>
+      <div class="scanner-view">
+        <video id="barcodeVideo" autoplay muted playsinline></video>
+        <div class="scanner-frame"><div class="scanner-line"></div></div>
+      </div>
+      <div class="scanner-status" id="barcodeScannerStatus" aria-live="polite">Starting camera…</div>
+      <button class="closebtn" id="cancelBarcodeScanner" type="button">Cancel</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script src="vendor/zxing-wasm-reader.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // ---------------- State ----------------
+  let items = [];          // {name, rate, discount, amount, autoName?, barcode?} — qty is always 1
+  let currentRate = "0";
+  let invoiceNo = Math.floor(1000 + Math.random()*9000);
+  let btDevice = null, btCharacteristic = null;
+
+  // Map a decoded barcode value to a product when the barcode contains only
+  // an identifier. Add known products here; no network lookup is performed.
+  const BARCODE_CATALOG = {
+    // '1234567890123': { name: 'Example item', price: 450 }
+  };
+
+  const $ = id => document.getElementById(id);
+
+  const itemListEl = $('itemList'), itemCountEl = $('itemCount'), runningTotalEl = $('runningTotal');
+  const rateValEl = $('rateVal');
+  const generateBtn = $('generateBtn');
+
+  function fmt(n){ return n.toFixed(2); }
+  function toast(msg){
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast._h); toast._h = setTimeout(()=>t.classList.remove('show'), 2200);
+  }
+
+  // ---------------- Keypad ----------------
+  $('keypad').addEventListener('click', (e)=>{
+    const btn = e.target.closest('button[data-k]');
+    if(!btn) return;
+    const k = btn.dataset.k;
+    if(k === 'back'){
+      currentRate = currentRate.length > 1 ? currentRate.slice(0,-1) : "0";
+    } else if(k === '.'){
+      if(!currentRate.includes('.')) currentRate += '.';
+    } else if(k === '00'){
+      currentRate = currentRate === "0" ? "0" : currentRate + "00";
+    } else {
+      currentRate = currentRate === "0" ? k : currentRate + k;
+    }
+    rateValEl.textContent = currentRate;
+  });
+
+  // ---------------- Edit discount on an already-added item ----------------
+  let editingItemIdx = null;
+
+  function openItemDiscountModal(idx){
+    editingItemIdx = idx;
+    const it = items[idx];
+    $('itemDiscountTitle').textContent = 'Discount — ' + it.name;
+    document.querySelectorAll('#itemDiscountRow .dchip').forEach(c=>c.classList.remove('active'));
+    $('itemCustomDiscountBtn').textContent = 'Custom';
+    $('customDiscountWrap').style.display = 'none';
+    $('customDiscountInput').value = '';
+    if(it.discount === 0){
+      document.querySelector('#itemDiscountRow .dchip[data-d="0"]').classList.add('active');
+    } else if(it.discount === 20 || it.discount === 25){
+      document.querySelector(`#itemDiscountRow .dchip[data-d="${it.discount}"]`).classList.add('active');
+    } else {
+      $('itemCustomDiscountBtn').textContent = it.discount + '% off';
+      $('itemCustomDiscountBtn').classList.add('active');
+      $('customDiscountWrap').style.display = 'block';
+      $('customDiscountInput').value = it.discount;
+    }
+    $('itemDiscountModal').classList.add('active');
+  }
+
+  function applyDiscountToItem(idx, discount){
+    const it = items[idx];
+    it.discount = discount;
+    it.amount = it.rate - (it.rate * discount / 100);
+    renderItems();
+  }
+
+  $('itemDiscountRow').addEventListener('click', (e)=>{
+    const btn = e.target.closest('.dchip');
+    if(!btn || editingItemIdx === null) return;
+    document.querySelectorAll('#itemDiscountRow .dchip').forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+    if(btn.dataset.d === 'custom'){
+      $('customDiscountWrap').style.display = 'block';
+      $('customDiscountInput').focus();
+    } else {
+      $('customDiscountWrap').style.display = 'none';
+      applyDiscountToItem(editingItemIdx, parseFloat(btn.dataset.d));
+    }
+  });
+
+  function applyCustomDiscount(){
+    if(editingItemIdx === null) return;
+    let pct = parseFloat($('customDiscountInput').value);
+    if(isNaN(pct) || pct < 0) pct = 0;
+    if(pct > 100) pct = 100;
+    $('itemCustomDiscountBtn').textContent = pct > 0 ? pct + '% off' : 'Custom';
+    applyDiscountToItem(editingItemIdx, pct);
+    toast(pct > 0 ? `Applied ${pct}% discount` : 'Discount removed');
+  }
+
+  $('applyCustomDiscount').addEventListener('click', applyCustomDiscount);
+  $('customDiscountInput').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); applyCustomDiscount(); }
+  });
+
+  $('closeItemDiscount').addEventListener('click', ()=>{
+    $('itemDiscountModal').classList.remove('active');
+    editingItemIdx = null;
+  });
+  $('itemDiscountModal').addEventListener('click', (e)=>{
+    if(e.target === $('itemDiscountModal')){
+      $('itemDiscountModal').classList.remove('active');
+      editingItemIdx = null;
+    }
+  });
+
+  $('addItemBtn').addEventListener('click', ()=>{
+    const rate = parseFloat(currentRate) || 0;
+    if(rate <= 0){ toast('Enter a rate greater than 0'); return; }
+    items.push({ name: 'Item ' + (items.length + 1), rate, discount: 0, amount: rate, autoName: true });
+    currentRate = "0"; rateValEl.textContent = "0";
+    renderItems();
+  });
+
+  // ---------------- Live barcode scanner ----------------
+  const scanBarcodeBtn = $('scanBarcodeBtn');
+  const barcodeScannerModal = $('barcodeScannerModal');
+  const barcodeVideo = $('barcodeVideo');
+  const barcodeScannerStatus = $('barcodeScannerStatus');
+  const barcodeCanvas = document.createElement('canvas');
+  const barcodeCanvasCtx = barcodeCanvas.getContext('2d', { willReadFrequently: true });
+  const BARCODE_FORMATS = ['Code128', 'Code39', 'Code93', 'Codabar', 'ITF', 'EAN13', 'EAN8', 'UPCA', 'UPCE'];
+
+  let barcodeCameraStream = null;
+  let barcodeScanTimer = null;
+  let barcodeScannerActive = false;
+  let barcodeFrameDecoding = false;
+  let barcodeResultHandled = false;
+  let barcodeDecoderConfigured = false;
+
+  scanBarcodeBtn.addEventListener('click', startBarcodeScanner);
+  $('closeBarcodeScanner').addEventListener('click', stopBarcodeScanner);
+  $('cancelBarcodeScanner').addEventListener('click', stopBarcodeScanner);
+  barcodeScannerModal.addEventListener('click', (e)=>{
+    if(e.target === barcodeScannerModal) stopBarcodeScanner();
+  });
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden && barcodeScannerActive) stopBarcodeScanner();
+  });
+  window.addEventListener('beforeunload', stopBarcodeScanner);
+
+  async function startBarcodeScanner(){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      toast('Camera scanning is not supported in this browser');
+      return;
+    }
+
+    barcodeScannerActive = true;
+    barcodeFrameDecoding = false;
+    barcodeResultHandled = false;
+    barcodeScannerStatus.textContent = 'Starting camera…';
+    barcodeScannerModal.classList.add('active');
+    setScanBusy(true);
+    try{
+      configureBarcodeDecoder();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+
+      if(!barcodeScannerActive){
+        stream.getTracks().forEach(track=>track.stop());
+        return;
+      }
+
+      barcodeCameraStream = stream;
+      barcodeVideo.srcObject = stream;
+      await barcodeVideo.play();
+      barcodeScannerStatus.textContent = 'Place one barcode inside the frame';
+      scheduleBarcodeFrame(150);
+    }catch(err){
+      console.error(err);
+      const message = err && err.name === 'NotAllowedError'
+        ? 'Camera permission was denied'
+        : err && err.name === 'NotFoundError'
+          ? 'No camera was found on this device'
+          : 'Could not start the camera';
+      stopBarcodeScanner();
+      toast(message);
+    }
+  }
+
+  function setScanBusy(busy){
+    scanBarcodeBtn.disabled = busy;
+    $('scanBarcodeText').textContent = busy ? 'Scanner Open' : 'Scan Barcode';
+  }
+
+  function configureBarcodeDecoder(){
+    if(!window.ZXingWASM){ throw new Error('Barcode decoder unavailable'); }
+    if(barcodeDecoderConfigured) return;
+
+    ZXingWASM.prepareZXingModule({
+      overrides: {
+        locateFile: path => path.endsWith('.wasm')
+          ? new URL('vendor/zxing_reader.wasm', window.location.href).href
+          : path
+      }
+    });
+    barcodeDecoderConfigured = true;
+  }
+
+  function scheduleBarcodeFrame(delay = 350){
+    clearTimeout(barcodeScanTimer);
+    if(barcodeScannerActive && !barcodeResultHandled){
+      barcodeScanTimer = setTimeout(scanBarcodeFrame, delay);
+    }
+  }
+
+  async function scanBarcodeFrame(){
+    if(!barcodeScannerActive || barcodeResultHandled || barcodeFrameDecoding) return;
+    if(barcodeVideo.readyState < 2 || !barcodeVideo.videoWidth || !barcodeVideo.videoHeight){
+      scheduleBarcodeFrame(150);
+      return;
+    }
+
+    barcodeFrameDecoding = true;
+    try{
+      const sourceWidth = barcodeVideo.videoWidth;
+      const sourceHeight = barcodeVideo.videoHeight;
+      const cropX = Math.floor(sourceWidth * .05);
+      const cropY = Math.floor(sourceHeight * .20);
+      const cropWidth = Math.floor(sourceWidth * .90);
+      const cropHeight = Math.floor(sourceHeight * .60);
+      const outputWidth = Math.min(1100, cropWidth);
+      const scale = outputWidth / cropWidth;
+
+      barcodeCanvas.width = outputWidth;
+      barcodeCanvas.height = Math.max(1, Math.round(cropHeight * scale));
+      barcodeCanvasCtx.drawImage(
+        barcodeVideo,
+        cropX, cropY, cropWidth, cropHeight,
+        0, 0, barcodeCanvas.width, barcodeCanvas.height
+      );
+
+      const imageData = barcodeCanvasCtx.getImageData(0, 0, barcodeCanvas.width, barcodeCanvas.height);
+      const results = await ZXingWASM.readBarcodes(imageData, {
+        formats: BARCODE_FORMATS,
+        tryHarder: true,
+        tryRotate: true,
+        tryInvert: false,
+        tryDownscale: false,
+        maxNumberOfSymbols: 1
+      });
+
+      if(barcodeScannerActive && results[0] && results[0].text){
+        barcodeResultHandled = true;
+        const rawValue = String(results[0].text).trim();
+        stopBarcodeScanner();
+        handleDecodedBarcode(rawValue);
+        return;
+      }
+    }catch(err){
+      console.error('Barcode frame decode failed', err);
+      barcodeScannerStatus.textContent = 'Unable to analyze this frame — keep the barcode steady';
+    }finally{
+      barcodeFrameDecoding = false;
+    }
+
+    scheduleBarcodeFrame();
+  }
+
+  function handleDecodedBarcode(rawValue){
+    const product = resolveBarcodeProduct(rawValue);
+    if(!product){
+      toast('Barcode read, but no item price found — add it manually');
+      return;
+    }
+
+    items.push({
+      name: product.name,
+      rate: product.price,
+      discount: 0,
+      amount: product.price,
+      autoName: !!product.autoName,
+      barcode: rawValue
+    });
+    renderItems();
+    toast(`${product.name} added — ₹${fmt(product.price)}`);
+  }
+
+  function stopBarcodeScanner(){
+    barcodeScannerActive = false;
+    clearTimeout(barcodeScanTimer);
+    barcodeScanTimer = null;
+    if(barcodeCameraStream){
+      barcodeCameraStream.getTracks().forEach(track=>track.stop());
+      barcodeCameraStream = null;
+    }
+    barcodeVideo.pause();
+    barcodeVideo.srcObject = null;
+    barcodeScannerModal.classList.remove('active');
+    setScanBusy(false);
+  }
+
+  function resolveBarcodeProduct(rawValue){
+    const catalogProduct = BARCODE_CATALOG[rawValue];
+    if(catalogProduct) return normaliseProduct(catalogProduct.name, catalogProduct.price);
+
+    // Custom barcodes may directly contain JSON, for example:
+    // {"name":"BH","price":450}
+    try{
+      const data = JSON.parse(rawValue);
+      const product = normaliseProduct(data.name || data.item, data.price || data.rate || data.mrp);
+      if(product) return product;
+    }catch(e){ /* not JSON; try compact text formats below */ }
+
+    // Price-only labels, including the supplied "Rs. 450" Code 128 label,
+    // become a normally numbered item because no item name is encoded.
+    const priceOnly = rawValue.match(/^(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d{1,2})?)$/i);
+    if(priceOnly) return normaliseProduct('Item ' + (items.length + 1), priceOnly[1], true);
+
+    // Also accept compact formats such as BH|450, BH:Rs.450, or BH Rs.450.
+    const match = rawValue.match(/^(.+?)(?:\s*[|,;:]\s*|\s+)(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d{1,2})?)$/i);
+    return match ? normaliseProduct(match[1], match[2]) : null;
+  }
+
+  function normaliseProduct(name, price, autoName = false){
+    const cleanName = String(name || '').trim();
+    const numericPrice = parseFloat(price);
+    if(!cleanName || !Number.isFinite(numericPrice) || numericPrice <= 0) return null;
+    return { name: cleanName.slice(0, 60), price: numericPrice, autoName };
+  }
+
+  function renderItems(){
+    itemListEl.innerHTML = '';
+    if(items.length === 0){
+      itemListEl.innerHTML = '<div class="empty">No items added yet — enter item details below</div>';
+    } else {
+      items.forEach((it, idx)=>{
+        const row = document.createElement('div');
+        row.className = 'item-row';
+        const subText = it.discount > 0
+          ? `<span class="strike">₹${fmt(it.rate)}</span> −${it.discount}%`
+          : `Rate ₹${fmt(it.rate)}`;
+        row.innerHTML = `
+          <div class="meta">
+            <div class="nm">${escapeHtml(it.name)}</div>
+            <div class="sub">${subText}</div>
+          </div>
+          <div class="right">
+            <div class="amt">₹${fmt(it.amount)}</div>
+            <button class="discbtn ${it.discount > 0 ? 'has-disc' : ''}" data-idx="${idx}">${it.discount > 0 ? it.discount + '% off' : '% off'}</button>
+            <button class="del" data-idx="${idx}">✕</button>
+          </div>`;
+        itemListEl.appendChild(row);
+      });
+    }
+    itemListEl.querySelectorAll('.del').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        items.splice(+b.dataset.idx,1);
+        items.forEach((it,i)=>{ if(it.autoName) it.name = 'Item ' + (i+1); });
+        renderItems();
+      });
+    });
+    itemListEl.querySelectorAll('.discbtn').forEach(b=>{
+      b.addEventListener('click', ()=> openItemDiscountModal(+b.dataset.idx));
+    });
+    const total = items.reduce((s,it)=>s + it.amount, 0);
+    itemCountEl.textContent = items.length;
+    runningTotalEl.textContent = '₹' + fmt(total);
+    generateBtn.disabled = items.length === 0;
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  $('clearOrder').addEventListener('click', ()=>{
+    if(items.length && !confirm('Clear all items?')) return;
+    items = []; renderItems();
+  });
+
+  // ---------------- Generate estimate ----------------
+  generateBtn.addEventListener('click', ()=>{
+    renderReceipt();
+    showScreen('receiptScreen');
+  });
+  $('backToEdit').addEventListener('click', ()=> showScreen('keypadScreen'));
+  $('newSaleBtn').addEventListener('click', ()=>{
+    items = []; renderItems();
+    invoiceNo++;
+    showScreen('keypadScreen');
+  });
+
+  function showScreen(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    $(id).classList.add('active');
+  }
+
+  function nowStr(){
+    const d = new Date();
+    let h = d.getHours(); const ampm = h>=12 ? 'PM':'AM'; h = h%12; if(h===0) h=12;
+    const mi = String(d.getMinutes()).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const yy = d.getFullYear();
+    return `${dd}-${mm}-${yy} ${h}:${mi} ${ampm}`;
+  }
+
+  function renderReceipt(){
+    const addr = $('shopAddr').value.trim();
+    const total = items.reduce((s,it)=>s + it.amount, 0);
+    const mrpTotal = items.reduce((s,it)=>s + it.rate, 0);
+    const savings = mrpTotal - total;
+    const rows = items.map(it => `
+      <div class="rc-item">
+        <div class="line2"><span>${escapeHtml(it.name)}</span><span>${fmt(it.amount)}</span></div>
+        ${it.discount > 0 ? `<div class="rc-itemdisc">MRP ₹${fmt(it.rate)} · ${it.discount}% off</div>` : ''}
+      </div>`).join('');
+
+    $('receiptContent').innerHTML = `
+      <div class="rc-sub">ROUGH ESTIMATE</div>
+      ${addr ? `<div class="rc-addr">${escapeHtml(addr)}</div>` : ''}
+      <div class="rc-invoice">INVOICE</div>
+      <hr class="rc-hr">
+      <div class="rc-meta"><span>${nowStr()}</span><span>Est #${invoiceNo}</span></div>
+      <hr class="rc-hr">
+      <div class="rc-cols"><span>ITEM</span><span>AMOUNT</span></div>
+      <hr class="rc-hr">
+      ${rows}
+      <hr class="rc-hr">
+      <div class="rc-totalrow"><span>Items: ${items.length}</span><span>Sub Total ₹${fmt(total)}</span></div>
+      ${savings > 0 ? `<div class="rc-totalrow rc-savings"><span>You saved</span><span>₹${fmt(savings)}</span></div>` : ''}
+      <div class="rc-grand">TOTAL: ₹${fmt(total)}</div>
+      <div class="rc-thanks">Thank you!</div>
+      <div class="torn"></div>
+    `;
+  }
+
+  // ---------------- Settings modal ----------------
+  $('openSettings').addEventListener('click', ()=> $('settingsModal').classList.add('active'));
+  $('closeSettings').addEventListener('click', ()=> $('settingsModal').classList.remove('active'));
+  $('settingsModal').addEventListener('click', (e)=>{ if(e.target === $('settingsModal')) $('settingsModal').classList.remove('active'); });
+
+  // ---------------- Share ----------------
+  $('shareBtn').addEventListener('click', async ()=>{
+    const total = items.reduce((s,it)=>s + it.amount, 0);
+    let text = `ROUGH ESTIMATE\n${nowStr()}   Est #${invoiceNo}\n\n`;
+    text += items.map(it => it.discount > 0
+      ? `${it.name}  ${fmt(it.rate)} -${it.discount}% = ${fmt(it.amount)}`
+      : `${it.name}  ${fmt(it.amount)}`
+    ).join('\n');
+    text += `\n\nTOTAL: ₹${fmt(total)}`;
+    if(navigator.share){
+      try{ await navigator.share({ title:'Rough Estimate', text }); }catch(e){/* cancelled */}
+    } else {
+      try{ await navigator.clipboard.writeText(text); toast('Copied estimate to clipboard'); }
+      catch(e){ toast('Sharing not supported on this browser'); }
+    }
+  });
+
+  // ================================================================
+  // Bluetooth ESC/POS thermal printer support
+  // ================================================================
+  // Common BLE service/characteristic UUIDs used across generic
+  // Chinese ESC/POS thermal printer modules. We request as many as
+  // possible, then auto-detect whichever writable characteristic the
+  // connected device actually exposes.
+  const CANDIDATE_SERVICES = [
+    '000018f0-0000-1000-8000-00805f9b34fb', // common thermal printer service
+    '49535343-fe7d-4ae5-8fa9-9fafd205e455', // ISSC transparent UART service
+    '0000ffe0-0000-1000-8000-00805f9b34fb', // HM-10 style serial service
+    '0000ff00-0000-1000-8000-00805f9b34fb',
+    'e7810a71-73ae-499d-8c15-faa9aef0c3f2'  // some Zjiang/Goojprt printers
+  ];
+
+  function btSupported(){
+    return !!(navigator.bluetooth && window.isSecureContext);
+  }
+
+  async function connectPrinter(){
+    if(!btSupported()){
+      toast(window.isSecureContext ? 'Web Bluetooth not supported in this browser' : 'Open this app over HTTPS (not file://) to use Bluetooth');
+      return;
+    }
+    try{
+      btDevice = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: CANDIDATE_SERVICES
+      });
+      $('printerStatusText').textContent = 'Connecting…';
+      const server = await btDevice.gatt.connect();
+
+      let found = null;
+      for(const svcUuid of CANDIDATE_SERVICES){
+        try{
+          const service = await server.getPrimaryService(svcUuid);
+          const chars = await service.getCharacteristics();
+          const writable = chars.find(c => c.properties.write || c.properties.writeWithoutResponse);
+          if(writable){ found = writable; break; }
+        }catch(e){ /* this device doesn't expose this service, try next */ }
+      }
+
+      if(!found){
+        toast('Connected, but no writable characteristic found on this printer');
+        setPrinterStatus(false);
+        return;
+      }
+      btCharacteristic = found;
+      setPrinterStatus(true, btDevice.name || 'Printer');
+      toast('Printer connected');
+
+      btDevice.addEventListener('gattserverdisconnected', ()=>{
+        setPrinterStatus(false);
+        btCharacteristic = null;
+      });
+    }catch(err){
+      console.error(err);
+      if(err.name !== 'NotFoundError'){ toast('Could not connect: ' + err.message); }
+    }
+  }
+
+  function setPrinterStatus(connected, name){
+    const el = $('printerStatus');
+    el.classList.toggle('connected', connected);
+    $('printerStatusText').textContent = connected ? `Connected: ${name}` : 'Printer not connected';
+    $('connectPrinterBtn').textContent = connected ? 'Disconnect' : 'Connect';
+  }
+
+  $('connectPrinterBtn').addEventListener('click', ()=>{
+    if(btDevice && btDevice.gatt.connected){
+      btDevice.gatt.disconnect();
+      setPrinterStatus(false);
+    } else {
+      connectPrinter();
+    }
+  });
+
+  // ---- ESC/POS byte builder ----
+  function buildEscPosBytes(){
+    // Use half the configured character width, since double-height+width
+    // text (used throughout below) takes up twice the horizontal space.
+    const width = Math.floor((parseInt($('paperWidth').value, 10) || 32) / 2);
+    const addr = $('shopAddr').value.trim();
+    const total = items.reduce((s,it)=>s + it.amount, 0);
+    const mrpTotal = items.reduce((s,it)=>s + it.rate, 0);
+    const savings = mrpTotal - total;
+
+    const bytes = [];
+    const push = arr => bytes.push(...arr);
+    const enc = str => Array.from(new TextEncoder().encode(str));
+
+    const ESC = 0x1B, GS = 0x1D;
+    const initP = [ESC,0x40];
+    const alignCenter = [ESC,0x61,0x01];
+    const alignLeft = [ESC,0x61,0x00];
+    const boldOn = [ESC,0x45,0x01];
+    const boldOff = [ESC,0x45,0x00];
+    const bigOn = [GS,0x21,0x11];   // double width + double height (headline size)
+    const wideOn = [GS,0x21,0x10];  // double width only (body text, still large but keeps columns readable)
+    const sizeOff = [GS,0x21,0x00];
+    const nl = [0x0A];
+
+    function line(text){ push(enc(text)); push(nl); }
+    function hr(){ line('-'.repeat(width)); }
+    function twoCol(left,right){
+      left = String(left); right = String(right);
+      const space = Math.max(1, width - left.length - right.length);
+      line(left + ' '.repeat(space) + right);
+    }
+    function wrap(text){
+      // simple wrap for item names longer than width
+      while(text.length > width){ line(text.slice(0,width)); text = text.slice(width); }
+      if(text.length) line(text);
+    }
+
+    push(initP);
+    push(nl); // extra top margin before the receipt starts
+    // ROUGH ESTIMATE heading at the very top, large and bold
+    push(alignCenter); push(boldOn); push(bigOn);
+    line('ROUGH ESTIMATE');
+    push(sizeOff); push(boldOff);
+    if(addr) line(addr);
+    push(boldOn);
+    line('INVOICE');
+    push(boldOff);
+    push(alignLeft);
+    // Body text printed double-width for larger, easy-to-read output
+    push(wideOn);
+    hr();
+    twoCol(nowStr(), 'Est #' + invoiceNo);
+    hr();
+    items.forEach(it=>{
+      twoCol(it.name, fmt(it.amount));
+      if(it.discount > 0){ line(`  MRP ${fmt(it.rate)} - ${it.discount}% off`); }
+    });
+    hr();
+    twoCol('Items: ' + items.length, 'Sub Total ' + fmt(total));
+    if(savings > 0){ twoCol('You saved', fmt(savings)); }
+    push(sizeOff);
+    push(alignCenter); push(boldOn); push(bigOn);
+    line('TOTAL ' + fmt(total));
+    push(sizeOff); push(boldOff);
+    push(wideOn);
+    line('Thank you!');
+    push(sizeOff); push(alignLeft);
+    // feed and cut
+    push([0x0A,0x0A,0x0A,0x0A,0x0A,0x0A]);
+    push([GS,0x56,0x42,0x00]); // partial cut with feed (supported by most)
+
+    return new Uint8Array(bytes);
+  }
+
+  async function sendToPrinter(bytes){
+    if(!btCharacteristic){ toast('Connect a printer first'); return false; }
+    // BLE has an MTU limit; chunk the payload.
+    const CHUNK = 180;
+    try{
+      for(let i=0; i<bytes.length; i+=CHUNK){
+        const chunk = bytes.slice(i, i+CHUNK);
+        if(btCharacteristic.properties.writeWithoutResponse){
+          await btCharacteristic.writeValueWithoutResponse(chunk);
+        } else {
+          await btCharacteristic.writeValue(chunk);
+        }
+        await new Promise(r => setTimeout(r, 25));
+      }
+      return true;
+    }catch(err){
+      console.error(err);
+      toast('Print failed: ' + err.message);
+      return false;
+    }
+  }
+
+  $('printBtn').addEventListener('click', async ()=>{
+    if(items.length === 0){ toast('No items to print'); return; }
+    if(!btCharacteristic){
+      toast('Connect a Bluetooth printer first');
+      return;
+    }
+    const bytes = buildEscPosBytes();
+    const ok = await sendToPrinter(bytes);
+    if(ok) toast('Sent to printer');
+  });
+
+  // init
+  renderItems();
+})();
+</script>
+</body>
+</html>
