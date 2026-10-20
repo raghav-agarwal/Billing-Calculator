@@ -30,6 +30,10 @@
   }
 
   /* ---------- Top bar ---------- */
+  .hw-scan-capture{
+    position:absolute; width:1px; height:1px; padding:0; margin:0; border:none;
+    opacity:0; pointer-events:none; left:0; top:0;
+  }
   .topbar{
     background:var(--navy); color:#fff; padding:8px 16px;
     display:flex; align-items:center; justify-content:space-between;
@@ -201,7 +205,10 @@
   /* ---------- Settings modal ---------- */
   .modal-bg{ position:fixed; inset:0; background:rgba(10,18,26,.45); display:none; align-items:flex-end; justify-content:center; z-index:20;}
   .modal-bg.active{ display:flex; }
-  .modal{ background:#fff; width:100%; max-width:430px; border-radius:18px 18px 0 0; padding:18px 18px 26px; }
+  .modal{
+    background:#fff; width:100%; max-width:430px; border-radius:18px 18px 0 0; padding:18px 18px 26px;
+    max-height:85vh; max-height:85dvh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  }
   .modal h3{ margin:0 0 12px; font-size:16px; }
   .modal label{ display:block; font-size:12.5px; color:var(--muted); margin:12px 0 6px; }
   .modal select, .modal input[type=text], .modal input[type=password], .modal input[type=number]{
@@ -276,6 +283,11 @@
 
   <!-- ===================== KEYPAD SCREEN ===================== -->
   <div class="screen active" id="keypadScreen">
+    <!-- Invisible, always-focused field so Android/Chrome reliably delivers
+         keystrokes from a connected Bluetooth/USB HID barcode scanner even
+         when no visible field is focused. Not meant to be seen or tapped. -->
+    <input type="text" id="hwScanCapture" class="hw-scan-capture" autocomplete="off" inputmode="none" readonly tabindex="-1" aria-hidden="true">
+
     <div class="topbar">
       <input class="shopname" id="shopName" placeholder="Shop name" value="Proforma Invoice" maxlength="30">
       <button class="iconbtn" id="openSettings" title="Settings">⚙</button>
@@ -396,12 +408,15 @@
             <input type="number" id="newCatDiscount" placeholder="Discount %" min="0" max="100" step="0.01">
             <button class="closebtn" id="addCategoryBtn" type="button">Add Category</button>
           </div>
-          <div class="note">Scanner format for category billing: &lt;code&gt; MRP &lt;amount&gt; (spaces optional, "MRP" case-insensitive, whole rupees only), e.g. "BH MRP 950" or "bhmrp950" → category "BH", MRP ₹950. Barcodes not in this format are rejected while this mode is on.</div>
+          <div class="note">Scanner format for category billing: &lt;code&gt; MRP &lt;amount&gt; (spaces optional, "MRP" case-insensitive, whole rupees only), e.g. "BH MRP 950" or "bhmrp950" → category "BH", MRP ₹950, with that category's discount applied automatically. Other barcodes still scan normally as a plain item (no discount) — only a recognized but unregistered category code is rejected.</div>
         </div>
       </div>
 
       <div class="note">
         Bluetooth printing needs Chrome or Edge on Android or desktop, over HTTPS (or localhost). It won't work in Safari/iOS or when the file is opened directly as file:// — host it on a simple web server or a service like GitHub Pages for Bluetooth to work.
+      </div>
+      <div class="note">
+        Handheld USB/Bluetooth barcode scanner: pair or plug it in via your device's normal Bluetooth/USB settings — no setup needed here. On the main screen (with no field selected), just scan — it's detected automatically.
       </div>
       <button class="closebtn" id="closeSettings">Done</button>
     </div>
@@ -680,11 +695,13 @@
   $('closeItemDiscount').addEventListener('click', ()=>{
     $('itemDiscountModal').classList.remove('active');
     editingItemIdx = null;
+    focusHwScanCapture();
   });
   $('itemDiscountModal').addEventListener('click', (e)=>{
     if(e.target === $('itemDiscountModal')){
       $('itemDiscountModal').classList.remove('active');
       editingItemIdx = null;
+      focusHwScanCapture();
     }
   });
 
@@ -692,10 +709,14 @@
     const rate = parseFloat(currentRate) || 0;
     if(rate <= 0){ toast('Enter a rate greater than 0'); return; }
 
-    if(categoryBillingEnabled){
-      if(!selectedCategoryCode){ toast('Select a category first'); return; }
-      const cat = categories.find(c => c.code === selectedCategoryCode);
-      if(!cat){ toast('Selected category no longer exists'); return; }
+    // Category selection is optional even when category billing is on —
+    // picking one auto-applies its discount; leaving it blank just adds a
+    // plain item with no discount, same as category billing being off.
+    const cat = categoryBillingEnabled && selectedCategoryCode
+      ? categories.find(c => c.code === selectedCategoryCode)
+      : null;
+
+    if(cat){
       const amount = rate - (rate * cat.discount / 100);
       items.push({ name: 'Item ' + (items.length + 1), rate, discount: cat.discount, amount, autoName: true, category: cat.code, categoryName: cat.name });
     } else {
@@ -859,29 +880,32 @@
 
   function handleDecodedBarcode(rawValue){
     if(categoryBillingEnabled){
-      // Category-mode barcodes must be <code> MRP <amount>, spaces optional
-      // and "MRP" case-insensitive, e.g. "BH MRP 950" or "bhmrp950".
-      // Whole-rupee amounts only. Nothing else is accepted while this mode is on.
+      // Category-mode barcodes look like <code> MRP <amount>, spaces optional
+      // and "MRP" case-insensitive, e.g. "BH MRP 950" or "bhmrp950" — whole
+      // rupees only. When a barcode matches this, the category's discount is
+      // applied automatically. Barcodes that DON'T match this pattern still
+      // scan normally (as a plain item, no category discount) rather than
+      // being rejected — only a recognized-but-unregistered category code
+      // is treated as an error, since that's a likely admin data gap.
       const catMatch = rawValue.trim().match(/^([A-Za-z]+)\s*MRP\s*(\d+)$/i);
-      if(!catMatch){
-        toast('Invalid barcode — expected <code> MRP <amount>, e.g. "BH MRP 950"');
+      if(catMatch){
+        const code = catMatch[1].toUpperCase();
+        const mrp = parseFloat(catMatch[2]);
+        const cat = categories.find(c => c.code.toUpperCase() === code);
+        if(!cat){
+          toast(`Unknown category code "${code}" — add it in Admin Settings`);
+          return;
+        }
+        const amount = mrp - (mrp * cat.discount / 100);
+        items.push({
+          name: 'Item ' + (items.length + 1), rate: mrp, discount: cat.discount, amount,
+          autoName: true, barcode: rawValue, category: cat.code, categoryName: cat.name
+        });
+        renderItems();
+        toast(`${cat.name} added — ₹${fmt(amount)} (${cat.discount}% off)`);
         return;
       }
-      const code = catMatch[1].toUpperCase();
-      const mrp = parseFloat(catMatch[2]);
-      const cat = categories.find(c => c.code.toUpperCase() === code);
-      if(!cat){
-        toast(`Unknown category code "${code}" — add it in Admin Settings`);
-        return;
-      }
-      const amount = mrp - (mrp * cat.discount / 100);
-      items.push({
-        name: 'Item ' + (items.length + 1), rate: mrp, discount: cat.discount, amount,
-        autoName: true, barcode: rawValue, category: cat.code, categoryName: cat.name
-      });
-      renderItems();
-      toast(`${cat.name} added — ₹${fmt(amount)} (${cat.discount}% off)`);
-      return;
+      // Not a <code> MRP <amount> barcode — fall through to normal scanning below.
     }
 
     const product = resolveBarcodeProduct(rawValue);
@@ -902,6 +926,80 @@
     toast(`${product.name} added — ₹${fmt(product.price)}`);
   }
 
+  // ---------------- Handheld USB/Bluetooth barcode scanner (HID "keyboard wedge") ----------------
+  // Almost all handheld barcode scanners — wired or Bluetooth-paired via the
+  // device's OS — emulate a keyboard: once connected, scanning a barcode just
+  // "types" its characters very rapidly and finishes with Enter. No pairing
+  // code or special API is needed on our side; we just recognize that typing
+  // pattern (fast keystrokes ending in Enter) and treat it as a scan, reusing
+  // the exact same handleDecodedBarcode() validation as the camera scanner.
+  // DIAGNOSTIC: set to false once scanning is confirmed working, to silence the debug toast.
+  const HW_SCAN_DEBUG = true;
+
+  let hwScanBuffer = '';
+  let hwScanTimer = null;
+  const HW_SCAN_IDLE_MS = 180;     // finalize the scan after this much silence, even with no Enter/Tab
+  const HW_SCAN_MIN_LENGTH = 3;
+  const hwScanCapture = $('hwScanCapture');
+
+  // Android/Chrome can be unreliable about delivering keyboard events to the
+  // page when nothing is focused, so we keep this invisible field focused by
+  // default on the main screen — that's what actually "catches" the scanner.
+  function focusHwScanCapture(){
+    if(!$('keypadScreen').classList.contains('active')) return;
+    if(document.querySelector('.modal-bg.active')) return;
+    hwScanCapture.focus({ preventScroll: true });
+  }
+
+  hwScanCapture.addEventListener('blur', ()=>{
+    // If focus moved to a real field (shop name, category picker, etc.) leave
+    // it there; otherwise reclaim focus shortly after so scanning keeps working.
+    setTimeout(()=>{
+      const active = document.activeElement;
+      if(active && active !== hwScanCapture && ['INPUT','SELECT','TEXTAREA'].includes(active.tagName)) return;
+      focusHwScanCapture();
+    }, 30);
+  });
+  window.addEventListener('focus', focusHwScanCapture);
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) focusHwScanCapture(); });
+
+  function finalizeHwScan(){
+    const value = hwScanBuffer;
+    hwScanBuffer = '';
+    clearTimeout(hwScanTimer);
+    hwScanTimer = null;
+    if(value.length >= HW_SCAN_MIN_LENGTH){
+      if(HW_SCAN_DEBUG) toast(`Scanner captured: "${value}"`);
+      handleDecodedBarcode(value);
+    }
+    // shorter fragments are silently dropped — likely stray/incidental keypresses
+  }
+
+  document.addEventListener('keydown', (e)=>{
+    // Only treat this as scanner input on the main entry screen, with no
+    // modal open, and only while our invisible capture field (or nothing
+    // else) has focus — so it never fights with typing in Settings, the
+    // category picker, the shop name field, or any other real form field.
+    if(!$('keypadScreen').classList.contains('active')) return;
+    if(document.querySelector('.modal-bg.active')) return;
+    const active = document.activeElement;
+    if(active && active !== hwScanCapture && ['INPUT','SELECT','TEXTAREA'].includes(active.tagName)) return;
+
+    if(e.key === 'Enter' || e.key === 'Tab'){
+      if(hwScanBuffer.length > 0){ e.preventDefault(); finalizeHwScan(); }
+      return;
+    }
+
+    if(e.key.length === 1){
+      hwScanBuffer += e.key;
+      // Restart the idle timer on every keystroke — scanners send characters
+      // in a fast burst, so a real scan never goes quiet until it's done.
+      // This also catches scanners configured with no Enter/Tab suffix at all.
+      clearTimeout(hwScanTimer);
+      hwScanTimer = setTimeout(finalizeHwScan, HW_SCAN_IDLE_MS);
+    }
+  });
+
   function stopBarcodeScanner(){
     barcodeScannerActive = false;
     clearTimeout(barcodeScanTimer);
@@ -914,6 +1012,7 @@
     barcodeVideo.srcObject = null;
     barcodeScannerModal.classList.remove('active');
     setScanBusy(false);
+    focusHwScanCapture();
   }
 
   function resolveBarcodeProduct(rawValue){
@@ -1014,6 +1113,7 @@
   function showScreen(id){
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     $(id).classList.add('active');
+    focusHwScanCapture();
   }
 
   function nowStr(){
@@ -1095,17 +1195,19 @@
     $('passwordModal').classList.remove('active');
     $('settingsPasswordInput').value = '';
     $('passwordError').style.display = 'none';
+    focusHwScanCapture();
   });
   $('passwordModal').addEventListener('click', (e)=>{
     if(e.target === $('passwordModal')){
       $('passwordModal').classList.remove('active');
       $('settingsPasswordInput').value = '';
       $('passwordError').style.display = 'none';
+      focusHwScanCapture();
     }
   });
 
-  $('closeSettings').addEventListener('click', ()=> $('settingsModal').classList.remove('active'));
-  $('settingsModal').addEventListener('click', (e)=>{ if(e.target === $('settingsModal')) $('settingsModal').classList.remove('active'); });
+  $('closeSettings').addEventListener('click', ()=>{ $('settingsModal').classList.remove('active'); focusHwScanCapture(); });
+  $('settingsModal').addEventListener('click', (e)=>{ if(e.target === $('settingsModal')){ $('settingsModal').classList.remove('active'); focusHwScanCapture(); } });
 
   // ---------------- Share ----------------
   $('shareBtn').addEventListener('click', async ()=>{
@@ -1327,6 +1429,7 @@
   renderCategorySelect();
   renderCategoryAdminList();
   renderItems();
+  focusHwScanCapture();
 })();
 </script>
 </body>
